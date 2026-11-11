@@ -1,0 +1,234 @@
+package br.edu.exemplo.app;
+import br.edu.exemplo.util.JPAUtil;
+import br.edu.exemplo.view.ProdutoView;
+public class Main {
+public static void main(String[] args){
+
+Laboratório Java • MVC + JPA + Hibernate + PostgreSQL
+
+try{new ProdutoView().iniciar();}
+finally{JPAUtil.fechar();}
+}
+}
+
+package br.edu.exemplo.controller;
+import java.math.BigDecimal;
+import java.util.List;
+import br.edu.exemplo.dao.ProdutoDAO;
+import br.edu.exemplo.model.Produto;
+public class ProdutoController {
+private final ProdutoDAO dao=new ProdutoDAO();
+private void validar(String nome,Integer qtd,BigDecimal valor){
+if(nome==null||nome.isBlank()||nome.trim().length()&gt;120)
+throw new IllegalArgumentException(&quot;Nome obrigatorio (maximo 120 caracteres).&quot;);
+if(qtd==null||qtd&lt;0)throw new IllegalArgumentException(&quot;Quantidade invalida.&quot;);
+if(valor==null||valor.signum()&lt;=0||valor.scale()&gt;2||
+valor.precision()-valor.scale()&gt;10)
+throw new IllegalArgumentException(&quot;Valor unitario invalido.&quot;);
+}
+private void validarId(Long id){
+if(id==null||id&lt;=0)throw new IllegalArgumentException(&quot;ID invalido.&quot;);
+}
+public void cadastrar(String nome,Integer qtd,BigDecimal valor){
+validar(nome,qtd,valor);dao.salvar(new Produto(nome.trim(),qtd,valor));
+}
+public List&lt;Produto&gt; listar(){return dao.listarTodos();}
+public Produto consultar(Long id){validarId(id);return dao.buscarPorId(id);}
+public boolean alterar(Long id,String nome,Integer qtd,BigDecimal valor){
+validarId(id);validar(nome,qtd,valor);
+Produto p=dao.buscarPorId(id);if(p==null)return false;
+p.setNome(nome.trim());p.setQuantidade(qtd);p.setValorUnitario(valor);
+dao.atualizar(p);return true;
+}
+public boolean excluir(Long id){validarId(id);return dao.excluir(id);}
+}
+
+package br.edu.exemplo.dao;
+import java.util.List;
+import br.edu.exemplo.model.Produto;
+import br.edu.exemplo.util.JPAUtil;
+import jakarta.persistence.*;
+public class ProdutoDAO {
+public void salvar(Produto p){
+EntityManager em=JPAUtil.getEntityManager(); EntityTransaction tx=em.getTransaction();
+try {tx.begin(); em.persist(p); tx.commit();}
+catch(RuntimeException e){if(tx.isActive())tx.rollback();throw e;}
+finally{em.close();}
+}
+public List&lt;Produto&gt; listarTodos(){
+EntityManager em=JPAUtil.getEntityManager();
+try{return em.createQuery(&quot;SELECT p FROM Produto p ORDER BY
+p.id&quot;,Produto.class).getResultList();}
+finally{em.close();}
+}
+public Produto buscarPorId(Long id){
+EntityManager em=JPAUtil.getEntityManager();
+try{return em.find(Produto.class,id);}finally{em.close();}
+}
+public void atualizar(Produto p){
+EntityManager em=JPAUtil.getEntityManager(); EntityTransaction tx=em.getTransaction();
+try{tx.begin();em.merge(p);tx.commit();}
+catch(RuntimeException e){if(tx.isActive())tx.rollback();throw e;}
+finally{em.close();}
+}
+public boolean excluir(Long id){
+EntityManager em=JPAUtil.getEntityManager(); EntityTransaction tx=em.getTransaction();
+try{tx.begin();Produto p=em.find(Produto.class,id);
+if(p==null){tx.rollback();return false;}
+em.remove(p);tx.commit();return true;
+}catch(RuntimeException e){if(tx.isActive())tx.rollback();throw e;}
+finally{em.close();}
+}
+
+Laboratório Java • MVC + JPA + Hibernate + PostgreSQL
+
+}
+
+import java.math.BigDecimal;
+import jakarta.persistence.*;
+@Entity @Table(name=&quot;produtos&quot;)
+public class Produto {
+@Id @GeneratedValue(strategy=GenerationType.IDENTITY)
+private Long id;
+@Column(nullable=false,length=120) private String nome;
+@Column(nullable=false) private Integer quantidade;
+@Column(name=&quot;valor_unitario&quot;,nullable=false,precision=12,scale=2)
+private BigDecimal valorUnitario;
+public Produto() {}
+public Produto(String nome,Integer quantidade,BigDecimal valorUnitario) {
+
+Laboratório Java • MVC + JPA + Hibernate + PostgreSQL
+this.nome=nome; this.quantidade=quantidade; this.valorUnitario=valorUnitario;
+}
+public Long getId(){return id;}
+public String getNome(){return nome;}
+public void setNome(String nome){this.nome=nome;}
+public Integer getQuantidade(){return quantidade;}
+public void setQuantidade(Integer quantidade){this.quantidade=quantidade;}
+public BigDecimal getValorUnitario(){return valorUnitario;}
+public void setValorUnitario(BigDecimal valor){this.valorUnitario=valor;}
+}
+
+package br.edu.exemplo.util;
+import jakarta.persistence.*;
+public final class JPAUtil {
+private static final EntityManagerFactory FACTORY =
+Persistence.createEntityManagerFactory(&quot;produtosPU&quot;);
+private JPAUtil() {}
+public static EntityManager getEntityManager(){return FACTORY.createEntityManager();}
+public static void fechar(){if(FACTORY.isOpen()) FACTORY.close();}
+}
+
+package br.edu.exemplo.view;
+import java.math.BigDecimal;
+import java.util.Scanner;
+import br.edu.exemplo.controller.ProdutoController;
+import br.edu.exemplo.model.Produto;
+public class ProdutoView {
+private final ProdutoController controller=new ProdutoController();
+private final Scanner sc=new Scanner(System.in);
+private String ler(String msg){System.out.print(msg);return sc.nextLine().trim();}
+private int inteiro(String msg){
+while(true){try{return Integer.parseInt(ler(msg));}
+catch(NumberFormatException e){System.out.println(&quot;Digite um inteiro valido.&quot;);}}
+}
+private long longo(String msg){
+while(true){try{return Long.parseLong(ler(msg));}
+catch(NumberFormatException e){System.out.println(&quot;Digite um ID valido.&quot;);}}
+
+Laboratório Java • MVC + JPA + Hibernate + PostgreSQL
+
+}
+private BigDecimal decimal(String msg){
+while(true){try{return new BigDecimal(ler(msg).replace(&#39;,&#39;,&#39;.&#39;));}
+catch(NumberFormatException e){System.out.println(&quot;Digite um valor valido.&quot;);}}
+}
+private void mostrar(Produto p){
+System.out.printf(&quot;ID: %d | Nome: %s | Quantidade: %d | R$ %s%n&quot;,
+p.getId(),p.getNome(),p.getQuantidade(),p.getValorUnitario());
+}
+public void iniciar(){
+int opcao;
+do{
+System.out.println(&quot;\n1-Cadastrar 2-Listar 3-Consultar 4-Alterar 5-Excluir 0-Sair&quot;);
+opcao=inteiro(&quot;Opcao: &quot;);
+try{
+switch(opcao){
+case 1 -&gt; {
+controller.cadastrar(ler(&quot;Nome: &quot;),inteiro(&quot;Quantidade: &quot;),decimal(&quot;Valor: &quot;));
+System.out.println(&quot;Produto cadastrado.&quot;);
+}
+case 2 -&gt; {
+var produtos=controller.listar();
+if(produtos.isEmpty())System.out.println(&quot;Nenhum produto cadastrado.&quot;);
+else produtos.forEach(this::mostrar);
+}
+case 3 -&gt; {
+Produto p=controller.consultar(longo(&quot;ID: &quot;));
+if(p==null)System.out.println(&quot;Nao encontrado.&quot;);else mostrar(p);
+}
+case 4 -&gt; {
+long id=longo(&quot;ID: &quot;);Produto p=controller.consultar(id);
+if(p==null){System.out.println(&quot;Nao encontrado.&quot;);break;}
+mostrar(p);
+boolean ok=controller.alterar(id,ler(&quot;Novo nome: &quot;),
+inteiro(&quot;Nova quantidade: &quot;),decimal(&quot;Novo valor: &quot;));
+System.out.println(ok?&quot;Alterado.&quot;:&quot;Nao encontrado.&quot;);
+}
+case 5 -&gt; {
+long id=longo(&quot;ID: &quot;);Produto p=controller.consultar(id);
+if(p==null){System.out.println(&quot;Nao encontrado.&quot;);break;}
+mostrar(p);
+if(ler(&quot;Confirma exclusao (S/N)? &quot;).equalsIgnoreCase(&quot;S&quot;))
+System.out.println(controller.excluir(id)?&quot;Excluido.&quot;:&quot;Nao encontrado.&quot;);
+else System.out.println(&quot;Cancelado.&quot;);
+}
+case 0 -&gt; System.out.println(&quot;Encerrando.&quot;);
+default -&gt; System.out.println(&quot;Opcao invalida.&quot;);
+}
+}catch(RuntimeException e){System.out.println(&quot;Erro: &quot;+e.getMessage());}
+}while(opcao!=0);
+}
+}
+
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;persistence xmlns=&quot;https://jakarta.ee/xml/ns/persistence&quot;
+xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;
+xsi:schemaLocation=&quot;https://jakarta.ee/xml/ns/persistence
+https://jakarta.ee/xml/ns/persistence/persistence_3_2.xsd&quot;
+version=&quot;3.2&quot;&gt;
+&lt;persistence-unit name=&quot;produtosPU&quot; transaction-type=&quot;RESOURCE_LOCAL&quot;&gt;
+&lt;provider&gt;org.hibernate.jpa.HibernatePersistenceProvider&lt;/provider&gt;
+&lt;class&gt;br.edu.exemplo.model.Produto&lt;/class&gt;
+&lt;properties&gt;
+&lt;property name=&quot;jakarta.persistence.jdbc.driver&quot; value=&quot;org.postgresql.Driver&quot;/&gt;
+&lt;property name=&quot;jakarta.persistence.jdbc.url&quot;
+value=&quot;jdbc:postgresql://localhost:5432/db_produtos&quot;/&gt;
+&lt;property name=&quot;jakarta.persistence.jdbc.user&quot; value=&quot;postgres&quot;/&gt;
+&lt;property name=&quot;jakarta.persistence.jdbc.password&quot; value=&quot;SUA_SENHA&quot;/&gt;
+&lt;property name=&quot;hibernate.hbm2ddl.auto&quot; value=&quot;update&quot;/&gt;
+&lt;property name=&quot;hibernate.show_sql&quot; value=&quot;true&quot;/&gt;
+&lt;property name=&quot;hibernate.format_sql&quot; value=&quot;true&quot;/&gt;
+&lt;/properties&gt;
+&lt;/persistence-unit&gt;
+&lt;/persistence&gt;
+
+&lt;project xmlns=&quot;http://maven.apache.org/POM/4.0.0&quot;
+xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;
+
+Laboratório Java • MVC + JPA + Hibernate + PostgreSQL
+
+xsi:schemaLocation=&quot;http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-
+4.0.0.xsd&quot;&gt;
+&lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;
+&lt;groupId&gt;br.edu.exemplo&lt;/groupId&gt;&lt;artifactId&gt;cadastro-produtos&lt;/artifactId&gt;
+&lt;version&gt;1.0-SNAPSHOT&lt;/version&gt;
+&lt;properties&gt;&lt;maven.compiler.release&gt;21&lt;/maven.compiler.release&gt;
+&lt;project.build.sourceEncoding&gt;UTF-8&lt;/project.build.sourceEncoding&gt;&lt;/properties&gt;
+&lt;dependencies&gt;
+&lt;dependency&gt;&lt;groupId&gt;org.hibernate.orm&lt;/groupId&gt;&lt;artifactId&gt;hibernate-
+core&lt;/artifactId&gt;&lt;version&gt;7.4.12.Final&lt;/version&gt;&lt;/dependency&gt;
+&lt;dependency&gt;&lt;groupId&gt;org.postgresql&lt;/groupId&gt;&lt;artifactId&gt;postgresql&lt;/artifactId&gt;&lt;version&gt;42.7.8&lt;/v
+ersion&gt;&lt;/dependency&gt;
+&lt;/dependencies&gt;
+&lt;/project&gt;
